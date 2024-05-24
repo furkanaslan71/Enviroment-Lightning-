@@ -238,7 +238,11 @@ The above two lines' arguments were wrong and it wasn't performing the mipmap. A
 
 # Some Results
 
+<img src="test_disco.png" alt="Speculardisco Test" width="700"/> 
 
+<img src="glossy_thumers.png" alt="Glossy Mode" width="700"/> 
+
+<img src="mirror_snow.png" alt="Mirror Mode" width="700"/> 
 
 
 
