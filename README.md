@@ -175,3 +175,70 @@ void Light::medianCut(int depth, Region* region)
 ```
 
 I passed the light data to the shaders via `Uniform Buffer Object`. When the user updates the level of the algorithm, `updateLevel(int num)` method is called, and updates the `UBO`data by passing the `level`th vector of `allLights`. 
+
+# Tone Mapping
+
+Since we are rendering HDR images, without tone-mapping we would not get nice visuals. To implement tone-mapping, instead of rendering the scene to the screen, first, we must take an off-screen render and capture the scene to a buffer, and use it as a texture for a fullscreen quad to show on the screen.
+
+First, we set the fragment colors of the skybox and the object to their `log(resultingColor)` before rendering them to the framebuffer. Then, we generate a `mipmap` of the resulting texture to find the average color of the scene (what I mean by saying the scene is that what we see in just one frame, a quad). After that, we use this information to scale the scene's luminance so that when we are looking different light levels, we see changing and more realistic luminance. 
+
+The calculations to do the tone-mapping take place in the fragment shader of the full-screen quad: 
+
+```glsl
+    #version 460 core
+    out vec4 FragColor;
+    
+    in vec2 TexCoords;
+    
+    uniform sampler2D screenTexture;
+    uniform int mode = 1;
+    uniform float exposure;
+    
+    void main()
+    {
+        
+        float delta = 1e-5f;
+        vec3 meanHdr = exp(textureLod(screenTexture, vec2(0.5, 0.5), 64).rgb);
+        
+        vec3 loggedHDRColor = texture(screenTexture, TexCoords).rgb;
+        
+        vec3 hdrColor = exp(loggedHDRColor);
+           
+        float lum = dot(hdrColor, vec3(0.2126, 0.7152, 0.0722)) + delta;
+        float meanLum = (dot(meanHdr, vec3(0.2126, 0.7152, 0.0722))) + delta;
+        float scaledLum = (lum / meanLum) * exposure;
+        float lumTM = scaledLum / (scaledLum + 1.0);
+        
+        vec3 tmColor = clamp((lumTM / lum) * hdrColor, vec3(0, 0, 0), vec3(1, 1, 1));
+        float p = 1.0 / 2.2;
+        vec3 gcColor = vec3(pow(tmColor.r, p), pow(tmColor.g, p), pow(tmColor.b, p));
+        
+    
+        FragColor = vec4(gcColor, 1.0);
+        
+    
+    }
+
+```
+# Extras
+
+Even though it was not wanted from us, I added some key controls to change the diffuse and specular coefficients of the lights so that in every skybox setting, users can adjust the lights to get a more desired result. (I didn't cap the values, so if you increase them more than enough, the objects in the scene become a sun and then crash the whole scene into a black screen, I purposefully didn't cap it to have a funny easter egg.) 
+
+# Things That Cost Me Too Much Time
+
+When I initializing the framebuffer to perform an off-screen render for tone-mapping, `glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, m_WindowState.width, m_WindowState.height, 0, GL_RGBA, GL_FLOAT, NULL);` this line of code cost me 1 day as I didn't notice the third argument was `GL_RGB` and not `GL_RGBA32F` as now. It was clamping the values between `0`and `1` so when I tried to render the scene, all I could see was plain black. I questioned both myself and the calculations I made for tone-mapping, and I did every possible combination of calculation changes in tone-mapping to fix it without having any clue about what was actually causing the problem. 
+
+And again, a couple of wrong arguments of OpenGL commands cost me another 1 day.
+```glsl
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+```
+The above two lines' arguments were wrong and it wasn't performing the mipmap. Again I questioned the tone-map algorithm even though it was fine. The moment I fix those two lines, everything was suddenly fixed and the rest of the homework was done with ease.
+
+# Some Results
+
+
+
+
+
+
